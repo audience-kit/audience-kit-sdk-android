@@ -29,7 +29,7 @@ dependencyResolutionManagement {
 rootProject.name = "audiencekit-kotlin"
 
 // The JVM library: the client, models and GraphQL. Builds with only a JDK.
-include(":audiencekit")
+include(":audiencekit", ":audiencekit-core")
 
 // The Android extras (keystore token store, device description) need the Android SDK. They're
 // left out when there's no SDK, so the core still builds and tests anywhere; CI always has one.

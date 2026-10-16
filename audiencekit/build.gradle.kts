@@ -21,6 +21,7 @@ java {
 }
 
 dependencies {
+    api(project(":audiencekit-core"))
     api(libs.kotlinx.coroutines.core)
     api(libs.kotlinx.serialization.json)
 

@@ -7,7 +7,9 @@ call for call.
 
 - Kotlin coroutines: every call is a `suspend` function that's safe on the main thread
 - Facebook Login stays in your app: the SDK takes the access token Facebook gives you
-- Two libraries:
+- Three libraries:
+  - `com.audiencekit:audiencekit-core`: a Kotlin Multiplatform prototype containing
+    GraphQL variables, coordinates and endpoint routing, shared by JVM and Apple targets.
   - `com.audiencekit:audiencekit`: the client, models and GraphQL. Plain JVM, so it
     runs in unit tests without an emulator. Depends only on kotlinx-coroutines and
     kotlinx-serialization, and talks HTTP over `HttpURLConnection`.
@@ -264,7 +266,7 @@ Cancelling the calling coroutine cancels the request.
 
 ## Development
 
-With JDK 17 or newer:
+With JDK 17 (selected by the monorepo's mise configuration):
 
 ```sh
 ./gradlew build                     # both libraries: compile, unit tests, Android lint
