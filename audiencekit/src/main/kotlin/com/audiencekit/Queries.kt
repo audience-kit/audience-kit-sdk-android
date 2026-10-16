@@ -114,7 +114,7 @@ public object Queries {
     /** The tribes people can identify with here, and the signed-in user's own. */
     public val tribes: String = """
         query Tribes {
-          id tribes { $TAG_FIELDS tribe }
+          id tribes: tags(tribes: true) { $TAG_FIELDS tribe }
           me { self { id tribes { isPrivate tag { $TAG_FIELDS tribe } } } }
         }
     """.trimIndent()
