@@ -154,6 +154,43 @@ class SignInTest {
     }
 
     @Test
+    fun exchangesTheGoogleIdTokenAndStoresTheSession() = runTest {
+        val stub = StubTransport {
+            StubTransport.json(
+                200,
+                """{"token":"jwt-google","userId":"u-google","audienceId":"$AUDIENCE_ID","role":"member",
+                 "endpoint":"https://api.audiencekit.test/v1/audience/$AUDIENCE_ID/graphql","venueDeviceId":null,"expiresAt":null}""",
+            )
+        }
+        val (client, store) = makeClient(stub, token = null)
+
+        val result = client.signInWithGoogle("google-id-token", device, name = "Ada Byron")
+
+        assertEquals("jwt-google", result.token)
+        assertEquals("u-google", result.userId)
+        assertEquals(AUDIENCE_ID, result.audienceId)
+        assertEquals("member", result.role)
+        assertEquals("jwt-google", store.loadToken())
+        assertEquals(AUDIENCE_ID, store.loadAudienceId())
+        assertTrue(client.isSignedIn)
+        assertEquals(SessionEvent.SIGNED_IN, client.sessionEvents.first())
+
+        val request = stub.requests.single()
+        assertEquals("POST", request.method)
+        assertEquals("/v1/token/google", request.path)
+        assertNull(request.header("Authorization"))
+
+        val body = request.jsonBody()
+        assertEquals("google-id-token", body.string("id_token"))
+        assertEquals("hotmess.admin.audiencekit.com", body.string("host"))
+        assertEquals("Ada Byron", body.string("name"))
+        assertEquals(
+            mapOf("identifier" to "device-1", "type" to "android", "model" to "Google Pixel 9", "version" to "2.0", "build" to "42"),
+            body["device"]!!.jsonObject.mapValues { it.value.jsonPrimitive.content },
+        )
+    }
+
+    @Test
     fun signOutForgetsTheToken() = runTest {
         val stub = StubTransport { StubTransport.json(200, "{}") }
         val (client, store) = makeClient(stub)

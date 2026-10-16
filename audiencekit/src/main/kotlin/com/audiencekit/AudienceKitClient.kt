@@ -143,11 +143,58 @@ public class AudienceKitClient(
         ),
     )
 
+    /**
+     * Exchanges a Google ID token for an AudienceKit session and stores it.
+     */
+    public suspend fun signInWithGoogle(
+        idToken: String,
+        device: DeviceDescription,
+        name: String? = null,
+    ): SignInResult = signIn(
+        GoogleSignInRequest(
+            idToken = idToken,
+            host = configuration.host,
+            device = device,
+            name = name,
+        ),
+    )
+
     private suspend fun signIn(body: SignInRequest): SignInResult {
         val request = APIRequest(
             method = "POST",
             path = "/v1/token",
             body = encodeJson.encodeToString(SignInRequest.serializer(), body).toByteArray(),
+            authenticated = false,
+        )
+
+        val response = perform(request)
+        when (response.status) {
+            in 200..299 -> Unit
+            401 -> throw AudienceKitException.SignInRejected()
+            400 -> {
+                val error = runCatching { decodeJson.decodeFromString(ErrorEnvelope.serializer(), response.text) }
+                throw AudienceKitException.SignInFailed(error.getOrNull()?.message)
+            }
+            else -> throw errorForStatus(response.status)
+        }
+
+        val result = decode(SignInResult.serializer(), response.text, decodeJson)
+        try {
+            tokenStore.saveToken(result.token)
+            tokenStore.saveAudienceId(result.audienceId)
+        } catch (e: Exception) {
+            throw AudienceKitException.TokenStorage(e.toString())
+        }
+        resolvedAudienceId = result.audienceId
+        sessionChannel.trySend(SessionEvent.SIGNED_IN)
+        return result
+    }
+
+    private suspend fun signIn(body: GoogleSignInRequest): SignInResult {
+        val request = APIRequest(
+            method = "POST",
+            path = "/v1/token/google",
+            body = encodeJson.encodeToString(GoogleSignInRequest.serializer(), body).toByteArray(),
             authenticated = false,
         )
 
@@ -568,6 +615,14 @@ internal data class SignInRequest(
     val host: String? = null,
     @SerialName("facebook_app_id") val facebookAppId: String? = null,
     val device: DeviceDescription,
+)
+
+@Serializable
+internal data class GoogleSignInRequest(
+    @SerialName("id_token") val idToken: String,
+    val host: String? = null,
+    val device: DeviceDescription,
+    val name: String? = null,
 )
 
 /** A REST error: `{ "error": "<code>", "message": "..." }` (the API's doc/TOKENS.md, "Error codes"). */
