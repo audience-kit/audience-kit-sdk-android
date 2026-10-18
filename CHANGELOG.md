@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.18.0 (2026-10-18)
 
 - `connectGoogle(idToken, device)` connects a Google account to the signed-in account (`POST /v1/token/google` with
   `connect`), whatever email either one has.

@@ -30,7 +30,7 @@ then depend on it as if it were published:
 
 ```kotlin
 dependencies {
-    implementation("com.audiencekit:audiencekit-android:0.17.0")
+    implementation("com.audiencekit:audiencekit-android:0.18.0")
 }
 ```
 
