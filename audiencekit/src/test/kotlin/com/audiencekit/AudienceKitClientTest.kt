@@ -191,6 +191,50 @@ class SignInTest {
     }
 
     @Test
+    fun sendsTheGoogleAccessTokenForOtherEmails() = runTest {
+        val stub = StubTransport {
+            StubTransport.json(200, """{"token":"jwt-google","userId":"u-google","audienceId":"$AUDIENCE_ID","role":"member","endpoint":"https://api.audiencekit.test/graphql"}""")
+        }
+        val (client, _) = makeClient(stub, token = null)
+
+        client.signInWithGoogle("google-id-token", device, accessToken = "google-access-token")
+
+        val body = stub.requests.single().jsonBody()
+        assertEquals("google-access-token", body.string("access_token"))
+        assertNull(body["connect"])
+    }
+
+    @Test
+    fun connectsGoogleToTheSignedInAccount() = runTest {
+        val stub = StubTransport {
+            StubTransport.json(200, """{"token":"jwt-connected","userId":"u-1","audienceId":"$AUDIENCE_ID","role":"member","endpoint":"https://api.audiencekit.test/graphql"}""")
+        }
+        val (client, store) = makeClient(stub, token = "jwt-facebook")
+
+        val result = client.connectGoogle("google-id-token", device)
+
+        assertEquals("jwt-connected", result.token)
+        assertEquals("jwt-connected", store.loadToken())
+        val request = stub.requests.single()
+        assertEquals("/v1/token/google", request.path)
+        assertEquals("Bearer jwt-facebook", request.header("Authorization"))
+        assertEquals("true", request.jsonBody()["connect"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun aRefusedGoogleConnectionKeepsTheSession() = runTest {
+        val stub = StubTransport {
+            StubTransport.json(400, """{"error":"INVALID","message":"That Google account already signs in to another account"}""")
+        }
+        val (client, store) = makeClient(stub, token = "jwt-facebook")
+
+        val error = assertFailsWith<AudienceKitException.SignInFailed> { client.connectGoogle("google-id-token", device) }
+
+        assertEquals("That Google account already signs in to another account", error.faultMessage)
+        assertEquals("jwt-facebook", store.loadToken())
+    }
+
+    @Test
     fun signOutForgetsTheToken() = runTest {
         val stub = StubTransport { StubTransport.json(200, "{}") }
         val (client, store) = makeClient(stub)

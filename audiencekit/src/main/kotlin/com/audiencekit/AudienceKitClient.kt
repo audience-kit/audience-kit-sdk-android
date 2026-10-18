@@ -145,19 +145,42 @@ public class AudienceKitClient(
 
     /**
      * Exchanges a Google ID token for an AudienceKit session and stores it.
+     *
+     * The ID token only carries the Google account's primary email. Pass [accessToken], an OAuth access token for
+     * the `https://www.googleapis.com/auth/user.emails.read` scope, and the API can also match an existing account by
+     * the Google account's other verified emails. Without it, sign-in works the same, matching by the primary one.
      */
     public suspend fun signInWithGoogle(
         idToken: String,
         device: DeviceDescription,
         name: String? = null,
+        accessToken: String? = null,
     ): SignInResult = signIn(
         GoogleSignInRequest(
             idToken = idToken,
+            accessToken = accessToken,
             host = configuration.host,
             device = device,
             name = name,
         ),
     )
+
+    /**
+     * Connects a Google account to the signed-in account, so Google signs in to it from then on, and stores the session
+     * the API answers with (for the account that now has Google; when the Google account already had its own account,
+     * the two became one). Use it when someone who signed in with Facebook or Apple wants Google too, whatever email
+     * either account has.
+     *
+     * Refusals throw [AudienceKitException.SignInFailed] with the API's reason (such as a Google account that already
+     * signs in to another account) and keep the current session.
+     */
+    public suspend fun connectGoogle(idToken: String, device: DeviceDescription): SignInResult {
+        val token = storedToken() ?: throw AudienceKitException.NotSignedIn()
+        return signIn(
+            GoogleSignInRequest(idToken = idToken, host = configuration.host, device = device, connect = true),
+            token,
+        )
+    }
 
     private suspend fun signIn(body: SignInRequest): SignInResult {
         val request = APIRequest(
@@ -190,7 +213,8 @@ public class AudienceKitClient(
         return result
     }
 
-    private suspend fun signIn(body: GoogleSignInRequest): SignInResult {
+    /** [token] is the session being connected (for `connect`); a refusal never ends it. */
+    private suspend fun signIn(body: GoogleSignInRequest, token: String? = null): SignInResult {
         val request = APIRequest(
             method = "POST",
             path = "/v1/token/google",
@@ -198,7 +222,7 @@ public class AudienceKitClient(
             authenticated = false,
         )
 
-        val response = perform(request)
+        val response = perform(request, token)
         when (response.status) {
             in 200..299 -> Unit
             401 -> throw AudienceKitException.SignInRejected()
@@ -620,9 +644,11 @@ internal data class SignInRequest(
 @Serializable
 internal data class GoogleSignInRequest(
     @SerialName("id_token") val idToken: String,
+    @SerialName("access_token") val accessToken: String? = null,
     val host: String? = null,
     val device: DeviceDescription,
     val name: String? = null,
+    val connect: Boolean? = null,
 )
 
 /** A REST error: `{ "error": "<code>", "message": "..." }` (the API's doc/TOKENS.md, "Error codes"). */
