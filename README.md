@@ -30,7 +30,7 @@ then depend on it as if it were published:
 
 ```kotlin
 dependencies {
-    implementation("com.audiencekit:audiencekit-android:0.18.0")
+    implementation("com.audiencekit:audiencekit-android:0.19.0")
 }
 ```
 
@@ -91,6 +91,38 @@ token (`POST /v1/token/refresh`) for the same session.
 
 Sign-in can fail with `AudienceKitException.SignInRejected` (the Facebook token is
 invalid, or from an app the audience doesn't use) or `AudienceKitException.SignInFailed`.
+
+### Sign in with Apple
+
+Android has no Sign in with Apple of its own, so `AppleWebSignIn` runs Apple's web sign-in in a Custom Tab with a
+Services ID. Apple posts the result to the API (`/v1/token/apple/callback`), which hands it back to your app on
+`audiencekit-apple://callback`, so declare that on the activity that takes it:
+
+```xml
+<intent-filter>
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="audiencekit-apple" android:host="callback" />
+</intent-filter>
+```
+
+```kotlin
+val apple = AppleWebSignIn(servicesId, AppleWebSignIn.callbackUrl(baseUrl), context.packageName)
+// Keep apple.state and apple.nonce until the result comes back.
+CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(apple.authorizationUrl()))
+
+// In onNewIntent:
+when (val result = apple.result(intent.data.toString())) {
+    is AppleWebSignIn.Result.Credential -> client.signInWithApple(result, apple, device)
+    AppleWebSignIn.Result.Cancelled -> Unit
+    is AppleWebSignIn.Result.Failed -> showError(result.reason)
+}
+```
+
+The nonce never leaves the app (Apple gets its SHA-256), and the API signs in with Apple only with it, so a token
+picked up in the browser can't be used elsewhere. The Services ID's return URLs must include the callback URL; see
+the API's `doc/TOKENS.md`, "Sign in with Apple on Android".
 
 ## Session ends
 

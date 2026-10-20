@@ -205,6 +205,34 @@ class SignInTest {
     }
 
     @Test
+    fun signsInWithAppleWithTheNonceAndReturnURL() = runTest {
+        val stub = StubTransport {
+            StubTransport.json(200, """{"token":"jwt-apple","userId":"u-apple","audienceId":"$AUDIENCE_ID","role":"member","endpoint":"https://api.audiencekit.test/graphql"}""")
+        }
+        val (client, store) = makeClient(stub, token = null)
+        val signIn = AppleWebSignIn("social.hotmess.signin", "https://api.audiencekit.test/v1/token/apple/callback",
+            "social.hotmess.android.app", state = "social.hotmess.android.app~s", nonce = "raw-nonce")
+        val credential = AppleWebSignIn.Result.Credential("apple-id-token", "apple-code", "Ada", null)
+
+        val result = client.signInWithApple(credential, signIn, device)
+
+        assertEquals("jwt-apple", result.token)
+        assertEquals("jwt-apple", store.loadToken())
+        assertEquals(SessionEvent.SIGNED_IN, client.sessionEvents.first())
+        val request = stub.requests.single()
+        assertEquals("/v1/token/apple", request.path)
+        assertNull(request.header("Authorization"))
+        val body = request.jsonBody()
+        assertEquals("apple-id-token", body.string("identity_token"))
+        assertEquals("apple-code", body.string("authorization_code"))
+        assertEquals("https://api.audiencekit.test/v1/token/apple/callback", body.string("redirect_uri"))
+        assertEquals("raw-nonce", body.string("nonce"))
+        assertEquals("Ada", body.string("first_name"))
+        assertNull(body["last_name"])
+        assertEquals("hotmess.admin.audiencekit.com", body.string("host"))
+    }
+
+    @Test
     fun connectsGoogleToTheSignedInAccount() = runTest {
         val stub = StubTransport {
             StubTransport.json(200, """{"token":"jwt-connected","userId":"u-1","audienceId":"$AUDIENCE_ID","role":"member","endpoint":"https://api.audiencekit.test/graphql"}""")

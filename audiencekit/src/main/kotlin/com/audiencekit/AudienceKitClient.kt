@@ -213,14 +213,44 @@ public class AudienceKitClient(
         return result
     }
 
+    /**
+     * Exchanges a Sign in with Apple identity token for an AudienceKit session and stores it (`POST /v1/token/apple`).
+     *
+     * On Android the credential comes from Apple's web sign-in ([AppleWebSignIn]): pass its [AppleWebSignIn.Result.Credential]
+     * and the [AppleWebSignIn] that started it, whose nonce binds the token to this app and whose return URL Apple needs
+     * again to exchange the authorization code (which lets the API revoke the sign-in when the account is deleted).
+     * Apple sends the name only the first time someone signs in to the app; the credential carries it then.
+     */
+    public suspend fun signInWithApple(
+        credential: AppleWebSignIn.Result.Credential,
+        signIn: AppleWebSignIn,
+        device: DeviceDescription,
+    ): SignInResult = signInWithApple(
+        AppleSignInRequest(
+            identityToken = credential.identityToken,
+            authorizationCode = credential.authorizationCode,
+            redirectUri = signIn.redirectUri,
+            nonce = signIn.nonce,
+            firstName = credential.firstName,
+            lastName = credential.lastName,
+            host = configuration.host,
+            device = device,
+        ),
+    )
+
+    private suspend fun signInWithApple(body: AppleSignInRequest): SignInResult =
+        exchange("/v1/token/apple", encodeJson.encodeToString(AppleSignInRequest.serializer(), body).toByteArray())
+
     /** [token] is the session being connected (for `connect`); a refusal never ends it. */
-    private suspend fun signIn(body: GoogleSignInRequest, token: String? = null): SignInResult {
-        val request = APIRequest(
-            method = "POST",
-            path = "/v1/token/google",
-            body = encodeJson.encodeToString(GoogleSignInRequest.serializer(), body).toByteArray(),
-            authenticated = false,
-        )
+    private suspend fun signIn(body: GoogleSignInRequest, token: String? = null): SignInResult =
+        exchange("/v1/token/google", encodeJson.encodeToString(GoogleSignInRequest.serializer(), body).toByteArray(), token)
+
+    /**
+     * Posts a sign-in to [path] and stores the session it answers with. [token] is a session being connected, sent as
+     * Authorization; a refusal never ends it.
+     */
+    private suspend fun exchange(path: String, body: ByteArray, token: String? = null): SignInResult {
+        val request = APIRequest(method = "POST", path = path, body = body, authenticated = false)
 
         val response = perform(request, token)
         when (response.status) {
@@ -638,6 +668,18 @@ internal data class SignInRequest(
     @SerialName("redirect_uri") val redirectUri: String? = null,
     val host: String? = null,
     @SerialName("facebook_app_id") val facebookAppId: String? = null,
+    val device: DeviceDescription,
+)
+
+@Serializable
+internal data class AppleSignInRequest(
+    @SerialName("identity_token") val identityToken: String,
+    @SerialName("authorization_code") val authorizationCode: String? = null,
+    @SerialName("redirect_uri") val redirectUri: String? = null,
+    val nonce: String? = null,
+    @SerialName("first_name") val firstName: String? = null,
+    @SerialName("last_name") val lastName: String? = null,
+    val host: String? = null,
     val device: DeviceDescription,
 )
 
