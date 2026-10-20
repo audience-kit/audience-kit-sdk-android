@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.0 (2026-10-20)
+
+- Sign in with Apple: `AppleWebSignIn` runs Apple's web sign-in in a Custom Tab (a Services ID, the API's
+  `/v1/token/apple/callback` return URL and an `audiencekit-apple://callback` hand-back), and
+  `signInWithApple(credential, signIn, device)` exchanges it at `POST /v1/token/apple` with the nonce that binds the
+  token to the app.
+
 ## 0.18.0 (2026-10-18)
 
 - `connectGoogle(idToken, device)` connects a Google account to the signed-in account (`POST /v1/token/google` with
